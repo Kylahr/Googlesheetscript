@@ -58,27 +58,52 @@ function onEdit(e) {
         rowData.push(values[i] === "N/A" ? "" : values[i]); // Replace "N/A" with an empty string
       }
 
-      // Start processing player information: Name, Realm, Class (3 columns for each player)
+      var maxDeaths = -1;
+      var minDeaths = Number.MAX_SAFE_INTEGER; // Track the minimum number of deaths
+      var maxDeathsColumn = -1;
+      var allDeathsEqual = true; // Flag to check if all deaths are the same
+      var previousDeathCount = null; // To compare each player's death count
+
+      // Start processing player information: Name, Realm, Deaths, Class (4 columns for each player)
       var playerIndex = 6; // Starting index for players' data
-      for (var i = playerIndex; i < values.length; i += 3) {
+      for (var i = playerIndex; i < values.length; i += 4) {
         var playerName = values[i] === "N/A" ? "" : values[i];
-        var realmName = values[i + 1] === "N/A" ? "" : values[i + 1];
-        var playerClass = values[i + 2] === "N/A" ? "" : values[i + 2];
+        var realmName = values[i + 1] === "N/A" ? "" : values[i + 1]; // Realm comes before Deaths
+        var deathCount = values[i + 2] === "N/A" ? "0" : values[i + 2]; // Default to 0 deaths if "N/A"
+        var playerClass = values[i + 3] === "N/A" ? "" : values[i + 3];
 
         if (playerName) {
           // Add player name to the rowData
           rowData.push(playerName); // Name
 
-          // Set realm as a tooltip if it exists
+          // Set realm and deaths as a tooltip if they exist
+          var tooltipText = "Realm: " + realmName + "\nDeaths: " + deathCount;
           var currentColumnIndex = rowData.length; // Current position in rowData (1-based index for setNote)
-          if (realmName) {
-            sheet.getRange(row, currentColumnIndex).setNote("Realm: " + realmName);
-          }
+          sheet.getRange(row, currentColumnIndex).setNote(tooltipText);
 
           // Apply background color to name cell based on class if it exists
           if (playerClass && classColors[playerClass]) {
             sheet.getRange(row, currentColumnIndex).setBackground(classColors[playerClass]);
+          } else {
+            sheet.getRange(row, currentColumnIndex).setBackground("#FFFFFF"); // Set to white if no class is defined
           }
+
+          // Check for the maximum and minimum deaths to apply special formatting
+          var deathsNum = parseInt(deathCount);
+          if (previousDeathCount !== null && deathsNum !== previousDeathCount) {
+            allDeathsEqual = false; // If any death count is different, set the flag to false
+          }
+          previousDeathCount = deathsNum;
+
+          if (deathsNum > maxDeaths) {
+            maxDeaths = deathsNum;
+            maxDeathsColumn = currentColumnIndex; // Remember the column with the most deaths
+          }
+
+          if (deathsNum < minDeaths) {
+            minDeaths = deathsNum; // Update the minimum deaths count
+          }
+
         } else {
           // If there's no player name, add empty cells for Name
           rowData.push("");
@@ -95,6 +120,15 @@ function onEdit(e) {
 
       // Apply status color to the cells A-F based on Bricked or Completed status
       sheet.getRange(row, 1, 1, 6).setBackground(statusColor);
+
+      // Apply bold and underline formatting to the player with the most deaths
+      if (!allDeathsEqual && maxDeathsColumn > -1 && maxDeaths > minDeaths) { // Check if all deaths are not equal and valid column for max deaths
+        sheet.getRange(row, maxDeathsColumn)
+          .setFontWeight("bold") // Set text to bold
+          .setFontLine("underline"); // Underline the text
+      } else {
+        Logger.log("All deaths are equal, no special formatting applied.");
+      }
 
       // Optional: Clear the input cell in column A (only if you want to clear it after processing)
       // sheet.getRange(row, 1).clearContent();
